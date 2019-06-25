@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+
+.idea/
+
+*.iml
+
+main
+
+Cargo.lock

@@ -1,0 +1,7 @@
+[package]
+name = "file_tree"
+version = "0.1.0"
+authors = ["nelson888 <tambue@hotmail.fr>"]
+edition = "2018"
+
+[dependencies]
