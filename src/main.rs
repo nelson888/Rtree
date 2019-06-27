@@ -55,12 +55,7 @@ fn visit(l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -
             if  i == files_count - 1 {
                 branch_indexes.remove(s_index);
             }
-
-            if path.is_dir() {
-                visit(l + 1, &entry.path(), branch_indexes)?;
-            } else {
-                print_path(path);
-            }
+            visit(l + 1, &entry.path(), branch_indexes)?;
         }
     }
     Ok(())
