@@ -1,7 +1,7 @@
 use std::env;
 use std::io;
-use std::fs::{self};
-use std::path::PathBuf;
+use std::fs::{self, DirEntry};
+use std::path::{PathBuf, Path};
 use std::ffi::OsStr;
 
 type Integer = i32;
@@ -38,9 +38,12 @@ fn visit(l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -
     branch_indexes.push(nb_spaces);
     let s_index : usize = branch_indexes.len() - 1;
     if path.is_dir() {
-        let files_count : usize = fs::read_dir(path)?.count();
-        let mut i : usize = 0;
-        for r_entry in fs::read_dir(path)? {
+        let paths : Vec<DirEntry>= fs::read_dir(path)?
+            .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
+            .collect();
+        let files_count : usize = paths.len();
+        for i in 0..files_count {
+            let entry = &paths[i];
             for j in 0..nb_spaces {
                 if branch_indexes.contains(&j)  {
                     print!("|");
@@ -52,8 +55,7 @@ fn visit(l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -
             if  i == files_count - 1 {
                 branch_indexes.remove(s_index);
             }
-            i = i + 1;
-            let entry = r_entry?;
+
             if path.is_dir() {
                 visit(l + 1, &entry.path(), branch_indexes)?;
             } else {
