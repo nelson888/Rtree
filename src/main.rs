@@ -1,7 +1,7 @@
 use std::env;
 use std::io;
 use std::fs::{self, DirEntry};
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 use std::ffi::OsStr;
 
 type Integer = i32;
