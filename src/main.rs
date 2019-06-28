@@ -64,16 +64,27 @@ fn print_path(path : &PathBuf) {
 }
 
 struct DirectoryVisitor {
-    all : bool
+    all : bool,
+    only_dirs: bool
 }
 
 impl DirectoryVisitor {
+
+    fn file_filter(&self, dir : &DirEntry) -> bool {
+        if self.only_dirs && !dir.path().is_dir() {
+            return false;
+        }
+        return self.all || !dir.file_name().to_str().unwrap().starts_with(".");
+    }
+
     //TODO bug in '|' printing in lines below
     fn visit(&self, l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -> io::Result<()> {
         for _i in 0..l {
             print!("__");
         }
+
         print_path(path);
+
         print!("\n");
         let nb_spaces: Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
         branch_indexes.push(nb_spaces);
@@ -81,7 +92,7 @@ impl DirectoryVisitor {
         if path.is_dir() {
             let paths : Vec<DirEntry>= fs::read_dir(path)?
                 .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
-                .filter(|p| self.all || !p.file_name().to_str().unwrap().starts_with("."))
+                .filter(|dir| self.file_filter(dir))
                 .collect();
             let files_count : usize = paths.len();
             for i in 0..files_count {
@@ -105,32 +116,41 @@ impl DirectoryVisitor {
 }
 
 extern crate clap;
-use clap::{Arg, App, SubCommand, ArgMatches};
+use clap::{Arg, App, ArgMatches};
 
 fn main() -> std::io::Result<()> {
     let matches : ArgMatches = App::new("tree")
         .version("1.0")
         .author("Tambue Nelson F. <tambapps@gmail.com>")
-        .about("Prints the file architecture of the current directory")
+        .about("Prints the file architecture of a directory")
+        .arg(Arg::default()
+            .help("path to list files from")
+            .multiple(true)
+            .required(false))
         .arg(Arg::with_name("all")
             .short("-a")
             .long("-all")
             .help("include hidden directories")
             .required(false)
             .takes_value(false))
-
-        .arg(Arg::default()
-            .help("path to list files from")
-            .required(false))
+        .arg(Arg::with_name("directory")
+            .short("-d")
+            .long("--directory")
+            .help("display only directories")
+            .required(false)
+            .takes_value(false))
         .get_matches();
 
-    let config = matches.value_of("all").unwrap_or("default.conf");
+    let config = matches.value_of("default").unwrap_or("default.conf");
     println!("Value for config: {}", config);
 
 
     let dir_visitor: DirectoryVisitor = DirectoryVisitor{
-      all: matches.is_present("all")
+        all: matches.is_present("all"),
+        only_dirs: matches.is_present("directory")
     };
+
+
     let path = env::current_dir()?;
     let mut b:  Box<Vec<Integer>> =  Box::new(Vec::new());
     dir_visitor.visit(0, &path, &mut b)?;
