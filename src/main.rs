@@ -86,7 +86,7 @@ impl DirectoryVisitor {
         print_path(path);
 
         print!("\n");
-        let nb_spaces: Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
+        let nb_spaces : Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
         branch_indexes.push(nb_spaces);
         let s_index : usize = branch_indexes.len() - 1;
         if path.is_dir() {
@@ -141,18 +141,16 @@ fn main() -> std::io::Result<()> {
             .takes_value(false))
         .get_matches();
 
-    let config = matches.value_of("default").unwrap_or("default.conf");
+    let config : &str = matches.value_of("default").unwrap_or("default.conf");
     println!("Value for config: {}", config);
 
-
-    let dir_visitor: DirectoryVisitor = DirectoryVisitor{
+    let dir_visitor : DirectoryVisitor = DirectoryVisitor{
         all: matches.is_present("all"),
         only_dirs: matches.is_present("directory")
     };
 
-
-    let path = env::current_dir()?;
-    let mut b:  Box<Vec<Integer>> =  Box::new(Vec::new());
+    let path : PathBuf = env::current_dir()?;
+    let mut b :  Box<Vec<Integer>> =  Box::new(Vec::new());
     dir_visitor.visit(0, &path, &mut b)?;
     Ok(())
 }
