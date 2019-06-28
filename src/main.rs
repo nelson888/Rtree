@@ -3,8 +3,17 @@ use std::io;
 use std::fs::{self, DirEntry};
 use std::path::PathBuf;
 use std::ffi::OsStr;
+use std::os::unix::fs::MetadataExt; // to get file mode (executable or not)
+
+use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green};
+use ansi_term::{Style, ANSIGenericString};
 
 type Integer = i32;
+
+const IMG_EXTENSIONS : [&str; 4] = ["svg", "png", "jpg", "jpeg"];
+const VID_EXTENSIONS : [&str; 3] = ["mp4", "mkv", "flv"];
+const DATA_EXTENSIONS : [&str; 2] = ["json", "xml"];
+const ARCHIVE_EXTENSIONS : [&str; 5] = ["gz", "zip", "rar", "tar", "7z"];
 
 fn from_ostr(ostr : &OsStr) -> Option<&str> {
     let opt_str : Option<&str> = ostr.to_str();
@@ -20,11 +29,39 @@ fn from_opt_ostr(opt_ostr : Option<&OsStr>) -> Option<&str> {
    return from_ostr(opt_ostr.unwrap());
 }
 
+fn ends_with(s : &str, arr: &[&str]) -> bool {
+    return arr.iter().any(|ext| s.ends_with(ext));
+}
+
+fn is_executable(path : &&PathBuf) -> bool {
+    let mode = fs::metadata(path).unwrap().mode();
+    return mode & 0o111 != 0;
+}
+
 fn print_path(path : &PathBuf) {
     let opt_str : Option<&str> = from_opt_ostr(path.file_name());
-    if opt_str.is_some() {
-        print!("{}", opt_str.unwrap());
+    if opt_str.is_none() {
+        return;
     }
+    let name : &str = opt_str.unwrap();
+    let mut coloured_name : ANSIGenericString<str>;
+    if path.is_dir() {
+        coloured_name = Blue.bold().paint(name);
+    } else if ends_with(name, &IMG_EXTENSIONS) {
+        coloured_name = Blue.bold().paint(name)
+    } else if ends_with(name, &VID_EXTENSIONS) {
+        coloured_name = Purple.bold().paint(name);
+    } else if ends_with(name, &DATA_EXTENSIONS) {
+        coloured_name = Yellow.bold().paint(name);
+    } else if ends_with(name, &ARCHIVE_EXTENSIONS) {
+        coloured_name = Red.bold().paint(name);
+    } else if is_executable(&path) {
+        coloured_name = Green.bold().paint(name);
+    } else {
+        coloured_name = Style::default().paint(name);
+    }
+
+    print!("{}", coloured_name);
 }
 
 //TODO bug in '|' printing in lines below

@@ -5,3 +5,4 @@ authors = ["nelson888 <tambue@hotmail.fr>"]
 edition = "2018"
 
 [dependencies]
+ansi_term = "0.9"
