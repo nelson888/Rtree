@@ -77,6 +77,7 @@ fn visit(l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -
     if path.is_dir() {
         let paths : Vec<DirEntry>= fs::read_dir(path)?
             .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
+            .filter(|p| !p.file_name().to_str().unwrap().starts_with("."))
             .collect();
         let files_count : usize = paths.len();
         for i in 0..files_count {
