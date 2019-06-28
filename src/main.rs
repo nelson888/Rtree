@@ -4,6 +4,8 @@ use std::fs::{self, DirEntry};
 use std::path::PathBuf;
 use std::ffi::OsStr;
 use std::os::unix::fs::MetadataExt; // to get file mode (executable or not)
+use std::process::exit;
+
 
 use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green, RGB};
 use ansi_term::{Style, ANSIGenericString};
@@ -14,6 +16,7 @@ const IMG_EXTENSIONS : [&str; 4] = ["svg", "png", "jpg", "jpeg"];
 const VID_EXTENSIONS : [&str; 3] = ["mp4", "mkv", "flv"];
 const DATA_EXTENSIONS : [&str; 2] = ["json", "xml"];
 const ARCHIVE_EXTENSIONS : [&str; 5] = ["gz", "zip", "rar", "tar", "7z"];
+const NO_LIMIT : Integer = -1;
 
 fn from_ostr(ostr : &OsStr) -> Option<&str> {
     let opt_str : Option<&str> = ostr.to_str();
@@ -65,7 +68,8 @@ fn print_path(path : &PathBuf) {
 
 struct DirectoryVisitor {
     all : bool,
-    only_dirs: bool
+    only_dirs: bool,
+    max_level: Integer
 }
 
 impl DirectoryVisitor {
@@ -79,13 +83,16 @@ impl DirectoryVisitor {
 
     //TODO bug in '|' printing in lines below
     fn visit(&self, l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -> io::Result<()> {
+
         for _i in 0..l {
             print!("__");
         }
 
         print_path(path);
-
         print!("\n");
+        if self.max_level != NO_LIMIT && l >= self.max_level {
+            return Ok(());
+        }
         let nb_spaces : Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
         branch_indexes.push(nb_spaces);
         let s_index : usize = branch_indexes.len() - 1;
@@ -115,6 +122,19 @@ impl DirectoryVisitor {
     }
 }
 
+
+fn to_int(s : &str) -> Integer {
+    let mut r : Integer = 0;
+    for c in s.chars() {
+        if c < '0' || c > '9' {
+            println!("{} is not a number", s);
+            exit(1);
+        }
+        r = 10 * r + (c.to_digit(10).unwrap() - '0'.to_digit(10).unwrap()) as Integer;
+    }
+    return r;
+}
+
 extern crate clap;
 use clap::{Arg, App, ArgMatches};
 
@@ -139,14 +159,18 @@ fn main() -> std::io::Result<()> {
             .help("display only directories")
             .required(false)
             .takes_value(false))
+        .arg(Arg::with_name("maxLevel")
+            .short("-l")
+            .long("--maxLevel")
+            .help("Max level of depth")
+            .required(false)
+            .takes_value(true))
         .get_matches();
-
-    let config : &str = matches.value_of("default").unwrap_or("default.conf");
-    println!("Value for config: {}", config);
 
     let dir_visitor : DirectoryVisitor = DirectoryVisitor{
         all: matches.is_present("all"),
-        only_dirs: matches.is_present("directory")
+        only_dirs: matches.is_present("directory"),
+        max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT)
     };
 
     let path : PathBuf = env::current_dir()?;
