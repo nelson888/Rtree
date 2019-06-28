@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use std::os::unix::fs::MetadataExt; // to get file mode (executable or not)
 
-use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green};
+use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green, RGB};
 use ansi_term::{Style, ANSIGenericString};
 
 type Integer = i32;
@@ -48,7 +48,7 @@ fn print_path(path : &PathBuf) {
     if path.is_dir() {
         coloured_name = Blue.bold().paint(name);
     } else if ends_with(name, &IMG_EXTENSIONS) {
-        coloured_name = Blue.bold().paint(name)
+        coloured_name = RGB(255,105,180).bold().paint(name)
     } else if ends_with(name, &VID_EXTENSIONS) {
         coloured_name = Purple.bold().paint(name);
     } else if ends_with(name, &DATA_EXTENSIONS) {
@@ -60,7 +60,6 @@ fn print_path(path : &PathBuf) {
     } else {
         coloured_name = Style::default().paint(name);
     }
-
     print!("{}", coloured_name);
 }
 
