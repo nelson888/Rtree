@@ -1,6 +1,6 @@
 use std::env;
 use std::io;
-use std::fs::{self, DirEntry};
+use std::fs::{self, DirEntry, Metadata};
 use std::path::PathBuf;
 use std::ffi::OsStr;
 use std::os::unix::fs::MetadataExt; // to get file mode (executable or not)
@@ -8,6 +8,11 @@ use std::process::exit;
 
 use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green, RGB};
 use ansi_term::{Style, ANSIGenericString};
+
+use std::cmp::Ordering;
+use core::borrow::Borrow;
+use std::cmp::Ordering::{Greater, Less};
+use std::time::SystemTime;
 
 type Integer = i32;
 
@@ -19,6 +24,13 @@ const NO_LIMIT : Integer = -1;
 
 const TILDE : &str = "~";
 const DOT : &str = ".";
+
+const NO_COMPARATOR : &str = "default";
+const NAME_COMPARATOR : &str = "name";
+const LAST_MODIFIED_COMPARATOR: &str = "modified";
+const DIRECTORY_COMPARATOR : &str = "directory";
+
+const COMPARATORS : [&str; 3] = [NAME_COMPARATOR, LAST_MODIFIED_COMPARATOR, DIRECTORY_COMPARATOR];
 
 fn from_ostr(ostr : &OsStr) -> Option<&str> {
     let opt_str : Option<&str> = ostr.to_str();
@@ -65,13 +77,62 @@ fn print_path(path : &PathBuf) {
     } else {
         coloured_name = Style::default().paint(name);
     }
+    if "" > "" {
+
+    }
     print!("{}", coloured_name);
+}
+
+/**
+Comparator stuff
+**/
+fn get_names(d1 : &DirEntry, d2 : &DirEntry) -> (String, String) {
+    let n1 : String = String::from(d1.file_name().to_str().unwrap());
+    let n2 : String = String::from(d2.file_name().to_str().unwrap());
+    return (n1, n2);
+}
+
+fn get_metadata(d1 : &DirEntry, d2 : &DirEntry) -> (Metadata, Metadata) {
+    let m1 : Metadata = d1.metadata().unwrap();
+    let m2 : Metadata = d2.metadata().unwrap();
+    return (m1, m2);
+}
+
+fn name_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
+    let names : (String, String)  = get_names(d1, d2);
+    return names.0.cmp(names.1.borrow());
+}
+
+fn get_comparator(comparator_name : &str) -> fn(v1 : &DirEntry, v2: &DirEntry) -> Ordering {
+    return match comparator_name {
+        NAME_COMPARATOR=> name_comparator,
+        DIRECTORY_COMPARATOR => directory_comparator,
+        LAST_MODIFIED_COMPARATOR => last_modified_comparator,
+        _ => { println!("Unknown comparator {}, exiting.", comparator_name); exit(1); }
+    };
+}
+
+fn directory_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
+    let metadatas : (Metadata, Metadata) = get_metadata(d1, d2);
+    if metadatas.0.is_dir() && metadatas.1.is_file() {
+        return Less;
+    } else if metadatas.1.is_dir() && metadatas.0.is_file() {
+        return Greater;
+    }
+    return name_comparator(d1, d2);
+}
+
+fn last_modified_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
+    let metadatas : (Metadata, Metadata) = get_metadata(d1, d2);
+    let last_modified: (SystemTime, SystemTime) = (metadatas.0.modified().unwrap(), metadatas.1.modified().unwrap());
+    return last_modified.1.cmp(last_modified.0.borrow());
 }
 
 struct DirectoryVisitor {
     all : bool,
     only_dirs: bool,
-    max_level: Integer
+    max_level: Integer,
+    comparator: String
 }
 
 impl DirectoryVisitor {
@@ -99,10 +160,15 @@ impl DirectoryVisitor {
         branch_indexes.push(nb_spaces);
         let s_index : usize = branch_indexes.len() - 1;
         if path.is_dir() {
-            let paths : Vec<DirEntry>= fs::read_dir(path)?
+            let mut p_result: Vec<DirEntry>= fs::read_dir(path)?
                 .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
                 .filter(|dir| self.file_filter(dir))
                 .collect();
+            if self.comparator.as_str() != NO_COMPARATOR {
+                p_result.sort_by(get_comparator(self.comparator.as_str()));
+            }
+            let paths : Vec<DirEntry> = p_result;
+
             let files_count : usize = paths.len();
             for i in 0..files_count {
                 let entry = &paths[i];
@@ -178,12 +244,23 @@ fn main() -> std::io::Result<()> {
             .help("Max level of depth")
             .required(false)
             .takes_value(true))
+        .arg(Arg::with_name("sorting")
+            .short("-s")
+            .long("--sort")
+            .help("Sorting by a criteria: file name, last modified date, or directory first")
+            .required(false)
+            .takes_value(true)
+            .default_value(NO_COMPARATOR)
+            .possible_values(COMPARATORS.borrow()))
         .get_matches();
+
+    let comparator : &str = matches.value_of("sorting").unwrap();
 
     let dir_visitor : DirectoryVisitor = DirectoryVisitor{
         all: matches.is_present("all"),
         only_dirs: matches.is_present("directory"),
-        max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT)
+        max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT),
+        comparator: String::from(comparator)
     };
 
     let paths : Vec<PathBuf>;
