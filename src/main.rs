@@ -194,9 +194,13 @@ fn main() -> std::io::Result<()> {
         paths = vec!(env::current_dir()?);
     }
 
-    for path in paths {
+    for i in 0..paths.len() {
+        let path : &PathBuf = &paths[i];
         let mut b :  Box<Vec<Integer>> =  Box::new(Vec::new());
         dir_visitor.visit(0, &path, &mut b)?;
-    };
+        if i < paths.len() - 1 {
+            println!();
+        }
+    }
     Ok(())
 }
