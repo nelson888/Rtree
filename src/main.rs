@@ -6,7 +6,6 @@ use std::ffi::OsStr;
 use std::os::unix::fs::MetadataExt; // to get file mode (executable or not)
 use std::process::exit;
 
-
 use ansi_term::Colour::{Blue, Yellow, Purple, Red, Green, RGB};
 use ansi_term::{Style, ANSIGenericString};
 
@@ -17,6 +16,9 @@ const VID_EXTENSIONS : [&str; 3] = ["mp4", "mkv", "flv"];
 const DATA_EXTENSIONS : [&str; 2] = ["json", "xml"];
 const ARCHIVE_EXTENSIONS : [&str; 5] = ["gz", "zip", "rar", "tar", "7z"];
 const NO_LIMIT : Integer = -1;
+
+const TILDE : &str = "~";
+const DOT : &str = ".";
 
 fn from_ostr(ostr : &OsStr) -> Option<&str> {
     let opt_str : Option<&str> = ostr.to_str();
@@ -135,15 +137,26 @@ fn to_int(s : &str) -> Integer {
     return r;
 }
 
+fn to_path_buf(s : &str) -> PathBuf {
+    let result : String;
+    if s.starts_with(TILDE) {
+        result = s.replace(TILDE, std::env::var("HOME").unwrap().as_str());
+    } else if s.starts_with(DOT) {
+        result = s.replace(DOT, env::current_dir().unwrap().to_str().unwrap());
+    } else {
+        result = String::from(s);
+    }
+    return PathBuf::from(result);
+}
 extern crate clap;
-use clap::{Arg, App, ArgMatches};
+use clap::{Arg, App, ArgMatches, Values};
 
 fn main() -> std::io::Result<()> {
     let matches : ArgMatches = App::new("tree")
         .version("1.0")
         .author("Tambue Nelson F. <tambapps@gmail.com>")
         .about("Prints the file architecture of a directory")
-        .arg(Arg::default()
+        .arg(Arg::with_name("paths")
             .help("path to list files from")
             .multiple(true)
             .required(false))
@@ -173,8 +186,17 @@ fn main() -> std::io::Result<()> {
         max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT)
     };
 
-    let path : PathBuf = env::current_dir()?;
-    let mut b :  Box<Vec<Integer>> =  Box::new(Vec::new());
-    dir_visitor.visit(0, &path, &mut b)?;
+    let paths : Vec<PathBuf>;
+    let opt_paths : Option<Values> = matches.values_of("paths");
+    if opt_paths.is_some() {
+        paths = opt_paths.unwrap().map(to_path_buf).collect();
+    } else {
+        paths = vec!(env::current_dir()?);
+    }
+
+    for path in paths {
+        let mut b :  Box<Vec<Integer>> =  Box::new(Vec::new());
+        dir_visitor.visit(0, &path, &mut b)?;
+    };
     Ok(())
 }
