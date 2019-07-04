@@ -22,7 +22,10 @@ file_tree ~/ ./target
 
 ### Optional Arguments
 
-- `-a` to include hidden directories
-- `-d` to only display directories
-- `-l` to specify a maximum level of depth
+- `-a` or `--all` to include hidden directories
+- `-d` or `--directory` to display directories only
+- `-l` or `--max-level`to specify a maximum level of depth
+- `-s` or `--sort` to specify a sorting policy (between `none`, `name`, `modified`)
+- `-r` or `--reverse` to reverse sorting order (should be used with the sort option)
+- `--dir-first` to display directories first
 - `--help` to display help

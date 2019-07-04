@@ -11,7 +11,7 @@ use ansi_term::{Style, ANSIGenericString};
 
 use std::cmp::Ordering;
 use core::borrow::Borrow;
-use std::cmp::Ordering::{Greater, Less};
+use std::cmp::Ordering::{Greater, Less, Equal};
 use std::time::SystemTime;
 
 type Integer = i32;
@@ -25,12 +25,11 @@ const NO_LIMIT : Integer = -1;
 const TILDE : &str = "~";
 const DOT : &str = ".";
 
-const NO_COMPARATOR : &str = "default";
+const NO_COMPARATOR : &str = "none";
 const NAME_COMPARATOR : &str = "name";
 const LAST_MODIFIED_COMPARATOR: &str = "modified";
-const DIRECTORY_COMPARATOR : &str = "directory";
 
-const COMPARATORS : [&str; 3] = [NAME_COMPARATOR, LAST_MODIFIED_COMPARATOR, DIRECTORY_COMPARATOR];
+const COMPARATORS : [&str; 3] = [NO_COMPARATOR, NAME_COMPARATOR, LAST_MODIFIED_COMPARATOR];
 
 fn from_ostr(ostr : &OsStr) -> Option<&str> {
     let opt_str : Option<&str> = ostr.to_str();
@@ -103,13 +102,28 @@ fn name_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
     return names.0.cmp(names.1.borrow());
 }
 
-fn get_comparator(comparator_name : &str) -> fn(v1 : &DirEntry, v2: &DirEntry) -> Ordering {
-    return match comparator_name {
+fn get_comparator(comparator_name : &str, reversed: bool, directory_first : bool) -> Box<Fn(&DirEntry,&DirEntry) -> Ordering> {
+    if comparator_name == NO_COMPARATOR { //in this case, directory_first should always be true
+        return Box::new(directory_comparator);
+    }
+    let func = match comparator_name {
         NAME_COMPARATOR=> name_comparator,
-        DIRECTORY_COMPARATOR => directory_comparator,
         LAST_MODIFIED_COMPARATOR => last_modified_comparator,
         _ => { println!("Unknown comparator {}, exiting.", comparator_name); exit(1); }
     };
+    return Box::new(move |d1: &DirEntry, d2: &DirEntry| {
+        if directory_first {
+            let order : Ordering = directory_comparator(d1, d2);
+            if order != Equal {
+                return order;
+            }
+        }
+        let mut order : Ordering = func(d1, d2);
+        if reversed {
+            order = order.reverse();
+        }
+        return order;
+    });
 }
 
 fn directory_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
@@ -119,7 +133,7 @@ fn directory_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
     } else if metadatas.1.is_dir() && metadatas.0.is_file() {
         return Greater;
     }
-    return name_comparator(d1, d2);
+    return Equal;
 }
 
 fn last_modified_comparator(d1 : &DirEntry, d2 : &DirEntry) -> Ordering {
@@ -132,7 +146,9 @@ struct DirectoryVisitor {
     all : bool,
     only_dirs: bool,
     max_level: Integer,
-    comparator: String
+    comparator: String,
+    reversed_sorting: bool,
+    directory_first: bool,
 }
 
 impl DirectoryVisitor {
@@ -164,8 +180,10 @@ impl DirectoryVisitor {
                 .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
                 .filter(|dir| self.file_filter(dir))
                 .collect();
-            if self.comparator.as_str() != NO_COMPARATOR {
-                p_result.sort_by(get_comparator(self.comparator.as_str()));
+            let comparator_name = self.comparator.as_str();
+
+            if comparator_name != NO_COMPARATOR || self.directory_first {
+                p_result.sort_by(get_comparator(comparator_name, self.reversed_sorting, self.directory_first));
             }
             let paths : Vec<DirEntry> = p_result;
 
@@ -240,7 +258,7 @@ fn main() -> std::io::Result<()> {
             .takes_value(false))
         .arg(Arg::with_name("maxLevel")
             .short("-l")
-            .long("--maxLevel")
+            .long("--max-level")
             .help("Max level of depth")
             .required(false)
             .takes_value(true))
@@ -252,6 +270,19 @@ fn main() -> std::io::Result<()> {
             .takes_value(true)
             .default_value(NO_COMPARATOR)
             .possible_values(COMPARATORS.borrow()))
+        .arg(Arg::with_name("directory_first")
+            .long("--dir-first")
+            .help("Displaying all directories before files. Can be combined with the sorting option")
+            .required(false)
+            .takes_value(false)
+            .possible_values(COMPARATORS.borrow()))
+        .arg(Arg::with_name("reversed")
+            .short("-r")
+            .short("--reverse")
+            .help("Sort in reverse order")
+            .required(false)
+            .takes_value(false)
+            .possible_values(COMPARATORS.borrow()))
         .get_matches();
 
     let comparator : &str = matches.value_of("sorting").unwrap();
@@ -260,7 +291,9 @@ fn main() -> std::io::Result<()> {
         all: matches.is_present("all"),
         only_dirs: matches.is_present("directory"),
         max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT),
-        comparator: String::from(comparator)
+        comparator: String::from(comparator),
+        reversed_sorting: matches.is_present("reversed"),
+        directory_first: matches.is_present("directory_first")
     };
 
     let paths : Vec<PathBuf>;
