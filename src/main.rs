@@ -24,6 +24,7 @@ const NO_LIMIT : Integer = -1;
 
 const TILDE : &str = "~";
 const DOT : &str = ".";
+const ASTERISK : &str = "*";
 
 const NO_COMPARATOR : &str = "none";
 const NAME_COMPARATOR : &str = "name";
@@ -149,15 +150,31 @@ struct DirectoryVisitor {
     comparator: String,
     reversed_sorting: bool,
     directory_first: bool,
+    prefix_filter: String,
+    suffix_filter: String,
+    file_filter: String
 }
 
 impl DirectoryVisitor {
 
-    fn file_filter(&self, dir : &DirEntry) -> bool {
-        if self.only_dirs && !dir.path().is_dir() {
-            return false;
+    fn path_filter(&self, dir : &DirEntry) -> bool {
+        let filename : String = String::from(dir.file_name().to_str().unwrap());
+        if !dir.path().is_dir() {
+            if self.only_dirs {
+                return false;
+            } else if !self.file_filter.is_empty() {
+                return filename.eq(&self.file_filter);
+            }
+            let mut keep : bool = true;
+            if !self.prefix_filter.is_empty() {
+                keep = filename.starts_with(&self.prefix_filter);
+            }
+            if !self.suffix_filter.is_empty() {
+                keep = keep && filename.ends_with(&self.suffix_filter);
+            }
+            return keep;
         }
-        return self.all || !dir.file_name().to_str().unwrap().starts_with(".");
+        return self.all || !filename.starts_with(DOT);
     }
 
     //TODO bug in '|' printing in lines below
@@ -178,7 +195,7 @@ impl DirectoryVisitor {
         if path.is_dir() {
             let mut p_result: Vec<DirEntry>= fs::read_dir(path)?
                 .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
-                .filter(|dir| self.file_filter(dir))
+                .filter(|dir| self.path_filter(dir))
                 .collect();
             let comparator_name = self.comparator.as_str();
 
@@ -283,17 +300,58 @@ fn main() -> std::io::Result<()> {
             .required(false)
             .takes_value(false)
             .possible_values(COMPARATORS.borrow()))
+        .arg(Arg::with_name("file_filter")
+            .short("-f")
+            .short("--file-filter")
+            .help("Specify a file name filter. Filters should either be a complete file name, a prefix (e.g \"prefix*\")\
+            a suffix (e.g \"*suffix\"), or a prefix and suffix (e.g \"prefix*suffix\")")
+            .required(false)
+            .takes_value(true))
         .get_matches();
 
     let comparator : &str = matches.value_of("sorting").unwrap();
 
+    let mut file_filter : String = String::new();
+    let mut prefix_filter : String = String::new();
+    let mut suffix_filter : String = String::new();
+
+    let opt_filter = matches.value_of("file_filter");
+    if opt_filter.is_some() {
+        let filter : &str = opt_filter.unwrap();
+        match filter.matches(ASTERISK).count() {
+            0 => file_filter = String::from(filter),
+            1 => {
+                let index : usize = filter.find(ASTERISK).unwrap();
+                if index == 0 {
+                    let mut suffix : String = String::from(filter);
+                    suffix.remove(0);
+                    suffix_filter = suffix;
+                } else if index == filter.len() - 1 {
+                    let mut prefix : String = String::from(filter);
+                    prefix.remove(filter.len() - 1);
+                    prefix_filter = prefix;
+                } else {
+                    let filters : Vec<&str> = filter.split(ASTERISK).collect();
+                    prefix_filter = String::from(filters[0]);
+                    suffix_filter = String::from(filters[1]);
+                }
+            }
+            _ =>  {
+                println!("The filter is malformed. Run with the '--help' option for mor information");
+                exit(1);
+            }
+        }
+    }
     let dir_visitor : DirectoryVisitor = DirectoryVisitor{
         all: matches.is_present("all"),
         only_dirs: matches.is_present("directory"),
         max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT),
         comparator: String::from(comparator),
         reversed_sorting: matches.is_present("reversed"),
-        directory_first: matches.is_present("directory_first")
+        directory_first: matches.is_present("directory_first"),
+        file_filter,
+        prefix_filter,
+        suffix_filter
     };
 
     let paths : Vec<PathBuf>;

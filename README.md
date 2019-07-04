@@ -28,4 +28,6 @@ file_tree ~/ ./target
 - `-s` or `--sort` to specify a sorting policy (between `none`, `name`, `modified`)
 - `-r` or `--reverse` to reverse sorting order (should be used with the sort option)
 - `--dir-first` to display directories first
+- `-f` or `--file-filter` to filter file names. Filters should either be a complete file name, a prefix (e.g `prefix*`),
+ a suffix (e.g `*suffix`), or a prefix and suffix (e.g `prefix*suffix`)
 - `--help` to display help
