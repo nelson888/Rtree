@@ -152,7 +152,8 @@ struct DirectoryVisitor {
     directory_first: bool,
     prefix_filter: String,
     suffix_filter: String,
-    file_filter: String
+    file_filter: String,
+    branch_indexes : Box<Vec<Integer>>
 }
 
 impl DirectoryVisitor {
@@ -178,26 +179,24 @@ impl DirectoryVisitor {
     }
 
     //TODO bug in '|' printing in lines below
-    fn visit(&self, l : Integer, path: &PathBuf, branch_indexes : &mut Box<Vec<Integer>>) -> io::Result<()> {
-
+    fn visit(&mut self, l : Integer, path: &PathBuf) -> io::Result<()> {
         for _i in 0..l {
             print!("__");
         }
-
         print_path(path);
         print!("\n");
         if self.max_level != NO_LIMIT && l >= self.max_level {
             return Ok(());
         }
-        let nb_spaces : Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
-        branch_indexes.push(nb_spaces);
-        let s_index : usize = branch_indexes.len() - 1;
         if path.is_dir() {
-            let mut p_result: Vec<DirEntry>= fs::read_dir(path)?
+            let nb_spaces : Integer = 2 * (l + l * 2 + (l * (l - 1)) / 2); //magic formula to print well
+            let s_index : usize = self.branch_indexes.len();
+            self.branch_indexes.push(nb_spaces);
+            let mut p_result: Vec<DirEntry> = fs::read_dir(path)?
                 .map(|r : Result<DirEntry, std::io::Error>| r.unwrap())
                 .filter(|dir| self.path_filter(dir))
                 .collect();
-            let comparator_name = self.comparator.as_str();
+            let comparator_name : &str = self.comparator.as_str();
 
             if comparator_name != NO_COMPARATOR || self.directory_first {
                 p_result.sort_by(get_comparator(comparator_name, self.reversed_sorting, self.directory_first));
@@ -208,18 +207,16 @@ impl DirectoryVisitor {
             for i in 0..files_count {
                 let entry = &paths[i];
                 for j in 0..nb_spaces {
-                    if branch_indexes.contains(&j)  {
+                    if self.branch_indexes.contains(&j)  {
                         print!("|");
                     } else {
                         print!(" ");
                     }
                 }
                 print!("|");
-                if  i == files_count - 1 {
-                    branch_indexes.remove(s_index);
-                }
-                self.visit(l + 1, &entry.path(), branch_indexes)?;
+                self.visit(l + 1, &entry.path())?;
             }
+            self.branch_indexes.remove(s_index);
         }
         Ok(())
     }
@@ -342,7 +339,7 @@ fn main() -> std::io::Result<()> {
             }
         }
     }
-    let dir_visitor : DirectoryVisitor = DirectoryVisitor{
+    let mut dir_visitor: DirectoryVisitor = DirectoryVisitor{
         all: matches.is_present("all"),
         only_dirs: matches.is_present("directory"),
         max_level: matches.value_of("maxLevel").map(to_int).unwrap_or(NO_LIMIT),
@@ -351,7 +348,8 @@ fn main() -> std::io::Result<()> {
         directory_first: matches.is_present("directory_first"),
         file_filter,
         prefix_filter,
-        suffix_filter
+        suffix_filter,
+        branch_indexes: Box::new(Vec::new())
     };
 
     let paths : Vec<PathBuf>;
@@ -364,8 +362,7 @@ fn main() -> std::io::Result<()> {
 
     for i in 0..paths.len() {
         let path : &PathBuf = &paths[i];
-        let mut b :  Box<Vec<Integer>> =  Box::new(Vec::new());
-        dir_visitor.visit(0, &path, &mut b)?;
+        dir_visitor.visit(0, &path)?;
         if i < paths.len() - 1 {
             println!();
         }
